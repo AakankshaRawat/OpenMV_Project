@@ -11,13 +11,26 @@ from plyer import notification
 import subprocess
 
 app = Flask(__name__)
+def wait_between_notifications():
+    global LAST_NOTIFICATION_TIME
+    with speech_lock:
+        now = time.time()
+
+        if now - LAST_NOTIFICATION_TIME < NOTIFICATION_DELAY:
+            remaining = NOTIFICATION_DELAY - (now - LAST_NOTIFICATION_TIME)
+            print(f"  Waiting {remaining:.1f}s before next notification...")
+            time.sleep(remaining)
+
+        LAST_NOTIFICATION_TIME = time.time()
 
 # ---- CONFIGURATION ----
 SERVER_PORT    = 5000
-ALERT_COOLDOWN = 3       # seconds between alerts
+ALERT_COOLDOWN = 5       # seconds between alerts
 MIN_CONFIDENCE = 0.70
 NTFY_TOPIC     = "rotten-fruit-team5"
 ENABLE_PHONE   = True
+LAST_NOTIFICATION_TIME = 0
+NOTIFICATION_DELAY = 5
 # -----------------------
 
 # Freshness labels from freshness.txt
@@ -94,6 +107,7 @@ def handle_no_fruit(confidence):
     message = f"No fruit in frame ({pct}% confidence)."
     speech  = "No fruit detected in front of the camera."
     print(f"\n  [NO FRUIT] {pct}%")
+    wait_between_notifications()
     threading.Thread(target=desktop_notif, args=(title, message), daemon=True).start()
     threading.Thread(target=phone_notif,   args=(title, message, "low"), daemon=True).start()
     speak(speech)
@@ -106,6 +120,7 @@ def handle_fruit_detected(fruit_name, confidence):
     message = f"{fruit_name} detected with {pct}% confidence."
     speech  = f"Fruit detected. It is a {fruit_name}, with {pct} percent confidence."
     print(f"\n  [FRUIT DETECTED] {fruit_name} at {pct}%")
+    wait_between_notifications()
     threading.Thread(target=desktop_notif, args=(title, message), daemon=True).start()
     threading.Thread(target=phone_notif,   args=(title, message, "default"), daemon=True).start()
     speak(speech)
@@ -134,6 +149,7 @@ def handle_freshness(label, confidence):
     )
 
     print(f"  [FRESHNESS] {urgency} {fruit_name} at {pct}%")
+    wait_between_notifications()
     threading.Thread(target=desktop_notif, args=(title, message), daemon=True).start()
     threading.Thread(target=phone_notif,   args=(title, message, settings["ntfy_priority"]), daemon=True).start()
     speak(speech)
